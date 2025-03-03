@@ -1,0 +1,451 @@
+from tkinter import messagebox
+from tkinter import *
+from tkinter import simpledialog
+import tkinter
+import matplotlib.pyplot as plt
+import numpy as np
+from tkinter import simpledialog
+from tkinter import filedialog
+import os
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+import seaborn as sns
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from keras.callbacks import ModelCheckpoint 
+from keras.layers import  MaxPooling2D
+from keras.layers import Dense, Dropout, Activation, Flatten
+from keras.layers import Convolution2D
+from keras.models import Sequential, load_model
+from keras.utils.np_utils import to_categorical
+from keras.layers import Conv2D, MaxPool2D, InputLayer, BatchNormalization, GlobalAveragePooling2D
+from keras.optimizers import Adam
+from imblearn.over_sampling import SMOTE
+from tkinter import END
+from keras.utils import to_categorical
+from sklearn.metrics import multilabel_confusion_matrix
+
+
+
+main = tkinter.Tk()
+main.title("Fall Sense:A Wearable Inertial Sensor -Based Dataset for Pre-Impact Fall Detection in Elderly Individuals.") #designing main screen
+main.geometry("1300x1200")
+
+global filename, dataset
+global X, Y
+global X_train, X_test, y_train, y_test, X_train_smote, y_train_smote
+global accuracy, precision, recall, fscore, labels, nin_model
+global scaler, labels, label_encoder
+accuracy = []
+precision = []
+recall = []
+fscore = []
+
+def uploadDataset():
+    global filename, dataset, labels
+    filename = filedialog.askopenfilename(initialdir="Dataset")
+    text.delete('1.0', END)
+    text.insert(END,filename+" loaded\n\n")
+    dataset= pd.read_csv(filename)
+    text.insert(END,str(dataset))
+    
+    
+def DatasetPreprocessing():
+    text.delete('1.0', END)
+    global X, Y, dataset, label_encoder
+    dataset = pd.read_csv(filename)
+    global X_train, X_test, y_train, y_test, scaler, X_train_smote, y_train_smote
+    text.insert(END,"Dataset Normalization & Preprocessing Task Completed\n\n")
+    text.insert(END,str(dataset)+"\n\n")
+    # Create a count plot
+    sns.set(style="darkgrid")  # Set the style of the plot
+    plt.figure(figsize=(8, 6))  # Set the figure size
+    # Replace 'dataset' with your actual DataFrame and 'Drug' with the column name
+    ax = sns.countplot(x='Decision ', data=dataset, palette="Set3")
+    plt.title("Count Plot")  # Add a title to the plot
+    plt.xlabel("Categories")  # Add label to x-axis
+    plt.ylabel("Count")  # Add label to y-axis
+    # Annotate each bar with its count value
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height()}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='center', fontsize=10, color='black', xytext=(0, 5),
+                textcoords='offset points')
+
+    plt.show()  # Display the plot
+        
+    X = dataset.drop(['Decision '],axis = 1) 
+    
+    Y = dataset['Decision ']
+    Y
+    
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2) 
+
+    text.insert(END,"Dataset Train & Test Splits\n")
+    text.insert(END,"Total data found in dataset : "+str(X.shape[0])+"\n")
+    text.insert(END,"80% dataset used for training  : "+str(X_train.shape[0])+"\n")
+    text.insert(END,"20% dataset user for testing   : "+str(X_test.shape[0])+"\n")
+    
+def runStandardRNN():
+    text.delete('1.0', END)
+    global accuracy, precision, recall, fscore
+    global X_train, y_train, X_test, y_test1, X_train_smote, y_train_smote,model_mlp
+
+    y_train1 = to_categorical(y_train)
+    y_test1 = to_categorical(y_test)
+    model_mlp = Sequential()
+
+    model_mlp.add(Dense(128, input_dim=X_train.shape[1], activation='relu'))
+    model_mlp.add(Dense(64, activation='relu'))
+    model_mlp.add(Dense(32, activation='relu'))
+    model_mlp.add(Dense(32, activation='relu'))
+    model_mlp.add(Dense(3, activation='softmax'))  # Assuming binary classification
+
+    model_mlp.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    print(model_mlp.summary())
+    model_mlp.fit(X_train, y_train1, epochs=10, batch_size=8, validation_data=(X_test, y_test1))
+
+    loss_mlp, accuracy_mlp = model_mlp.evaluate(X_test, y_test1)
+    y_pred_mlp = model_mlp.predict(X_test)
+    # Convert predicted probabilities to binary labels
+    y_pred_mlp = (y_pred_mlp > 0.5).astype(int)
+
+    predict = y_pred_mlp
+    testY = y_test1
+    print(accuracy_score(y_test1,predict)*100)
+    p = precision_score(testY, predict,average='macro') * 100
+    r = recall_score(testY, predict,average='macro') * 100
+    f = f1_score(testY, predict,average='macro') * 100
+    a = accuracy_score(testY,predict)*100
+    accuracy.append(a)
+    precision.append(p)
+    recall.append(r)
+    fscore.append(f)
+    #text.insert(" Accuracy  : "+str(a)+"\n")
+    text.insert("end", " Residual Neural Network Accuracy  : " + str(a) + "\n")
+    text.insert("end"," Residual Neural Network Precision : "+str(p)+"\n")
+    text.insert("end","Residual Neural Network Recall    : "+str(r)+"\n")
+    text.insert("end","Residual Neural Network FSCORE    : "+str(f)+"\n\n")
+    
+
+def runLogisticRegression():
+    text.delete('1.0', END)
+    global accuracy, precision, recall, fscore,clf
+    global X_train, y_train, X_test, y_test, X_train_smote, y_train_smote
+    clf = LogisticRegression(max_iter=1,solver='liblinear',C=1e10,random_state=40)
+    clf.fit(X_train, y_train)
+    predict = clf.predict(X_test)
+    testY = y_test
+    p = precision_score(testY, predict,average='macro') * 100
+    r = recall_score(testY, predict,average='macro') * 100
+    f = f1_score(testY, predict,average='macro') * 100
+    a = accuracy_score(testY,predict)*100
+    accuracy.append(a)
+    precision.append(p)
+    recall.append(r)
+    fscore.append(f)
+    #text.insert("end, "LogisticRegression Accuracy  : " + str(a) + "\n")
+    text.insert("end", "LogisticRegression Accuracy  : " + str(a) + "\n")
+    text.insert("end","LogisticRegression Precision : "+str(p)+"\n")
+    text.insert("end","LogisticRegression Recall    : "+str(r)+"\n")
+    text.insert("end","LogisticRegression FSCORE    : "+str(f)+"\n\n")
+
+   
+
+def predict():
+    global model_mlp
+    text.delete('1.0', END)
+    filename = filedialog.askopenfilename(initialdir="Dataset")
+    test = pd.read_csv(filename)
+    
+    for i in range(len(test)):
+        input_data = test.iloc[i, :6]  # Exclude the last column (Decision)
+        input_data = input_data.values.reshape(1, -1)
+        prediction = model_mlp.predict(input_data)
+        
+        # Assuming prediction is a one-hot encoded vector for multiclass classification
+        predicted_class = np.argmax(prediction)
+        
+        text.insert(END, f'Input data for row {i}: {input_data}\n')
+        
+        if predicted_class == 0:
+            predicted_data = "no fall detected"
+        elif predicted_class == 1:
+            predicted_data = "slipped/tripped"
+        elif predicted_class == 2:
+            predicted_data = "definite fall"
+        
+        
+        text.insert(END, f'Predicted output for row {i}: {predicted_data}\n')
+
+
+font = ('times', 16, 'bold')
+title = Label(main, text='Fall Sense:A Wearable Inertial Sensor -Based Dataset for Pre-Impact Fall Detection in Elderly Individuals.')
+title.config(bg='LightGreen', fg='medium orchid')  
+title.config(font=font)           
+title.config(height=3, width=120)       
+title.place(x=0,y=5)
+
+font1 = ('times', 12, 'bold')
+text=Text(main,height=22,width=140)
+scroll=Scrollbar(text)
+text.configure(yscrollcommand=scroll.set)
+text.place(x=10,y=200)
+text.config(font=font1)
+
+
+font1 = ('times', 12, 'bold')
+uploadButton = Button(main, text="Upload Dataset", command=uploadDataset)
+uploadButton.place(x=50,y=100)
+uploadButton.config(font=font1)  
+
+preButton = Button(main, text="Dataset Preprocessing", command=DatasetPreprocessing)
+preButton.place(x=370,y=100)
+preButton.config(font=font1) 
+
+rfButton = Button(main, text="Logistic Regression", command=runLogisticRegression)
+rfButton.place(x=610,y=100)
+rfButton.config(font=font1)
+
+nbButton = Button(main, text="Residual Neural Networks", command=runStandardRNN)
+nbButton.place(x=860,y=100)
+nbButton.config(font=font1) 
+ 
+
+predictButton = Button(main, text="Prediction on Test Data", command=predict)
+predictButton.place(x=50,y=150)
+predictButton.config(font=font1)  
+
+#main.config(bg='OliveDrab2')
+main.mainloop()from tkinter import messagebox
+from tkinter import *
+from tkinter import simpledialog
+import tkinter
+import matplotlib.pyplot as plt
+import numpy as np
+from tkinter import simpledialog
+from tkinter import filedialog
+import os
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+import seaborn as sns
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from keras.callbacks import ModelCheckpoint 
+from keras.layers import  MaxPooling2D
+from keras.layers import Dense, Dropout, Activation, Flatten
+from keras.layers import Convolution2D
+from keras.models import Sequential, load_model
+from keras.utils.np_utils import to_categorical
+from keras.layers import Conv2D, MaxPool2D, InputLayer, BatchNormalization, GlobalAveragePooling2D
+from keras.optimizers import Adam
+from imblearn.over_sampling import SMOTE
+from tkinter import END
+from keras.utils import to_categorical
+from sklearn.metrics import multilabel_confusion_matrix
+
+
+
+main = tkinter.Tk()
+main.title("Fall Sense:A Wearable Inertial Sensor -Based Dataset for Pre-Impact Fall Detection in Elderly Individuals.") #designing main screen
+main.geometry("1300x1200")
+
+global filename, dataset
+global X, Y
+global X_train, X_test, y_train, y_test, X_train_smote, y_train_smote
+global accuracy, precision, recall, fscore, labels, nin_model
+global scaler, labels, label_encoder
+accuracy = []
+precision = []
+recall = []
+fscore = []
+
+def uploadDataset():
+    global filename, dataset, labels
+    filename = filedialog.askopenfilename(initialdir="Dataset")
+    text.delete('1.0', END)
+    text.insert(END,filename+" loaded\n\n")
+    dataset= pd.read_csv(filename)
+    text.insert(END,str(dataset))
+    
+    
+def DatasetPreprocessing():
+    text.delete('1.0', END)
+    global X, Y, dataset, label_encoder
+    dataset = pd.read_csv(filename)
+    global X_train, X_test, y_train, y_test, scaler, X_train_smote, y_train_smote
+    text.insert(END,"Dataset Normalization & Preprocessing Task Completed\n\n")
+    text.insert(END,str(dataset)+"\n\n")
+    # Create a count plot
+    sns.set(style="darkgrid")  # Set the style of the plot
+    plt.figure(figsize=(8, 6))  # Set the figure size
+    # Replace 'dataset' with your actual DataFrame and 'Drug' with the column name
+    ax = sns.countplot(x='Decision ', data=dataset, palette="Set3")
+    plt.title("Count Plot")  # Add a title to the plot
+    plt.xlabel("Categories")  # Add label to x-axis
+    plt.ylabel("Count")  # Add label to y-axis
+    # Annotate each bar with its count value
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height()}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                ha='center', va='center', fontsize=10, color='black', xytext=(0, 5),
+                textcoords='offset points')
+
+    plt.show()  # Display the plot
+        
+    X = dataset.drop(['Decision '],axis = 1) 
+    
+    Y = dataset['Decision ']
+    Y
+    
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2) 
+
+    text.insert(END,"Dataset Train & Test Splits\n")
+    text.insert(END,"Total data found in dataset : "+str(X.shape[0])+"\n")
+    text.insert(END,"80% dataset used for training  : "+str(X_train.shape[0])+"\n")
+    text.insert(END,"20% dataset user for testing   : "+str(X_test.shape[0])+"\n")
+    
+def runStandardRNN():
+    text.delete('1.0', END)
+    global accuracy, precision, recall, fscore
+    global X_train, y_train, X_test, y_test1, X_train_smote, y_train_smote,model_mlp
+
+    y_train1 = to_categorical(y_train)
+    y_test1 = to_categorical(y_test)
+    model_mlp = Sequential()
+
+    model_mlp.add(Dense(128, input_dim=X_train.shape[1], activation='relu'))
+    model_mlp.add(Dense(64, activation='relu'))
+    model_mlp.add(Dense(32, activation='relu'))
+    model_mlp.add(Dense(32, activation='relu'))
+    model_mlp.add(Dense(3, activation='softmax'))  # Assuming binary classification
+
+    model_mlp.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    print(model_mlp.summary())
+    model_mlp.fit(X_train, y_train1, epochs=10, batch_size=8, validation_data=(X_test, y_test1))
+
+    loss_mlp, accuracy_mlp = model_mlp.evaluate(X_test, y_test1)
+    y_pred_mlp = model_mlp.predict(X_test)
+    # Convert predicted probabilities to binary labels
+    y_pred_mlp = (y_pred_mlp > 0.5).astype(int)
+
+    predict = y_pred_mlp
+    testY = y_test1
+    print(accuracy_score(y_test1,predict)*100)
+    p = precision_score(testY, predict,average='macro') * 100
+    r = recall_score(testY, predict,average='macro') * 100
+    f = f1_score(testY, predict,average='macro') * 100
+    a = accuracy_score(testY,predict)*100
+    accuracy.append(a)
+    precision.append(p)
+    recall.append(r)
+    fscore.append(f)
+    #text.insert(" Accuracy  : "+str(a)+"\n")
+    text.insert("end", " Residual Neural Network Accuracy  : " + str(a) + "\n")
+    text.insert("end"," Residual Neural Network Precision : "+str(p)+"\n")
+    text.insert("end","Residual Neural Network Recall    : "+str(r)+"\n")
+    text.insert("end","Residual Neural Network FSCORE    : "+str(f)+"\n\n")
+    
+
+def runLogisticRegression():
+    text.delete('1.0', END)
+    global accuracy, precision, recall, fscore,clf
+    global X_train, y_train, X_test, y_test, X_train_smote, y_train_smote
+    clf = LogisticRegression(max_iter=1,solver='liblinear',C=1e10,random_state=40)
+    clf.fit(X_train, y_train)
+    predict = clf.predict(X_test)
+    testY = y_test
+    p = precision_score(testY, predict,average='macro') * 100
+    r = recall_score(testY, predict,average='macro') * 100
+    f = f1_score(testY, predict,average='macro') * 100
+    a = accuracy_score(testY,predict)*100
+    accuracy.append(a)
+    precision.append(p)
+    recall.append(r)
+    fscore.append(f)
+    #text.insert("end, "LogisticRegression Accuracy  : " + str(a) + "\n")
+    text.insert("end", "LogisticRegression Accuracy  : " + str(a) + "\n")
+    text.insert("end","LogisticRegression Precision : "+str(p)+"\n")
+    text.insert("end","LogisticRegression Recall    : "+str(r)+"\n")
+    text.insert("end","LogisticRegression FSCORE    : "+str(f)+"\n\n")
+
+   
+
+def predict():
+    global model_mlp
+    text.delete('1.0', END)
+    filename = filedialog.askopenfilename(initialdir="Dataset")
+    test = pd.read_csv(filename)
+    
+    for i in range(len(test)):
+        input_data = test.iloc[i, :6]  # Exclude the last column (Decision)
+        input_data = input_data.values.reshape(1, -1)
+        prediction = model_mlp.predict(input_data)
+        
+        # Assuming prediction is a one-hot encoded vector for multiclass classification
+        predicted_class = np.argmax(prediction)
+        
+        text.insert(END, f'Input data for row {i}: {input_data}\n')
+        
+        if predicted_class == 0:
+            predicted_data = "no fall detected"
+        elif predicted_class == 1:
+            predicted_data = "slipped/tripped"
+        elif predicted_class == 2:
+            predicted_data = "definite fall"
+        
+        
+        text.insert(END, f'Predicted output for row {i}: {predicted_data}\n')
+
+
+font = ('times', 16, 'bold')
+title = Label(main, text='Fall Sense:A Wearable Inertial Sensor -Based Dataset for Pre-Impact Fall Detection in Elderly Individuals.')
+title.config(bg='LightGreen', fg='medium orchid')  
+title.config(font=font)           
+title.config(height=3, width=120)       
+title.place(x=0,y=5)
+
+font1 = ('times', 12, 'bold')
+text=Text(main,height=22,width=140)
+scroll=Scrollbar(text)
+text.configure(yscrollcommand=scroll.set)
+text.place(x=10,y=200)
+text.config(font=font1)
+
+
+font1 = ('times', 12, 'bold')
+uploadButton = Button(main, text="Upload Dataset", command=uploadDataset)
+uploadButton.place(x=50,y=100)
+uploadButton.config(font=font1)  
+
+preButton = Button(main, text="Dataset Preprocessing", command=DatasetPreprocessing)
+preButton.place(x=370,y=100)
+preButton.config(font=font1) 
+
+rfButton = Button(main, text="Logistic Regression", command=runLogisticRegression)
+rfButton.place(x=610,y=100)
+rfButton.config(font=font1)
+
+nbButton = Button(main, text="Residual Neural Networks", command=runStandardRNN)
+nbButton.place(x=860,y=100)
+nbButton.config(font=font1) 
+ 
+
+predictButton = Button(main, text="Prediction on Test Data", command=predict)
+predictButton.place(x=50,y=150)
+predictButton.config(font=font1)  
+
+#main.config(bg='OliveDrab2')
+main.mainloop()
